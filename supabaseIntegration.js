@@ -6,12 +6,43 @@ const SUPABASE_URL = 'https://gqsdxkaarwyayrqftjfo.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_DKnA4UiciAU_7y2xs-iwQg_mvE6hh9_';
 
 // Inicializar cliente Supabase
-const { createClient } = window.supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+let supabaseClient = null;
+
+async function initSupabaseClient() {
+    try {
+        if (!window.supabase) {
+            throw new Error('Biblioteca Supabase não carregada. Aguarde alguns segundos e tente novamente.');
+        }
+        
+        const { createClient } = window.supabase;
+        supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+        console.log('✅ Cliente Supabase inicializado com sucesso');
+        return true;
+    } catch (error) {
+        console.error('❌ Erro ao inicializar Supabase:', error);
+        return false;
+    }
+}
+
+// Chamar inicialização automaticamente
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSupabaseClient);
+} else {
+    initSupabaseClient();
+}
 
 // ====== FUNÇÕES DE AUTENTICAÇÃO ======
 async function loginUserSupabase(email, password) {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+            if (!supabaseClient) {
+                return { success: false, error: 'Falha ao conectar com Supabase' };
+            }
+        }
+
+        console.log('🔐 Tentando fazer login para:', email);
+        
         // Buscar usuário no banco
         const { data, error } = await supabaseClient
             .from('users')
@@ -19,7 +50,12 @@ async function loginUserSupabase(email, password) {
             .eq('email', email)
             .single();
 
-        if (error || !data) {
+        if (error) {
+            console.error('❌ Erro ao buscar usuário:', error);
+            return { success: false, error: `Erro ao buscar usuário: ${error.message || error}` };
+        }
+
+        if (!data) {
             return { success: false, error: 'Usuário não encontrado' };
         }
 
@@ -32,11 +68,11 @@ async function loginUserSupabase(email, password) {
         localStorage.setItem('loggedInUser', email);
         localStorage.setItem('userId', data.id);
         
-        console.log('Login bem-sucedido:', data);
+        console.log('✅ Login bem-sucedido para:', email);
         return { success: true, user: data };
     } catch (error) {
-        console.error('Erro de login:', error);
-        return { success: false, error: error.message };
+        console.error('❌ Erro durante login:', error);
+        return { success: false, error: `Erro de autenticação: ${error.message}` };
     }
 }
 
@@ -48,8 +84,20 @@ async function logoutUserSupabase() {
 // ====== FUNÇÕES DE ASSESSMENTS ======
 async function getAssessmentsFromSupabase() {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+            if (!supabaseClient) {
+                throw new Error('Cliente Supabase não inicializado');
+            }
+        }
+
         const userId = localStorage.getItem('userId');
-        if (!userId) return [];
+        if (!userId) {
+            console.warn('⚠️ Usuário não autenticado');
+            return [];
+        }
+        
+        console.log('📥 Carregando assessments para usuário:', userId);
         
         const { data, error } = await supabaseClient
             .from('assessments')
@@ -59,9 +107,11 @@ async function getAssessmentsFromSupabase() {
             .order('data_limite', { ascending: true });
 
         if (error) {
-            console.error('Erro ao buscar assessments:', error);
-            return [];
+            console.error('❌ Erro ao buscar assessments:', error);
+            throw error;
         }
+        
+        console.log('✅ Assessments carregados:', data?.length || 0);
         
         // Normalizar dados (calcular dias_restantes)
         return (data || []).map(item => ({
@@ -69,18 +119,24 @@ async function getAssessmentsFromSupabase() {
             dias_restantes: calculateDaysRemaining(item.data_limite)
         }));
     } catch (error) {
-        console.error('Erro ao buscar assessments:', error);
+        console.error('❌ Erro ao buscar assessments:', error);
         return [];
     }
 }
 
 async function createAssessmentSupabase(assessment) {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+        }
+
         const userId = localStorage.getItem('userId');
         if (!userId) return { success: false, error: 'Usuário não autenticado' };
         
         const dias_restantes = calculateDaysRemaining(assessment.data_limite);
         const status = dias_restantes < 0 ? 'Atrasado' : assessment.status;
+        
+        console.log('➕ Criando novo assessment:', assessment.nome);
         
         const { data, error } = await supabaseClient
             .from('assessments')
@@ -99,21 +155,30 @@ async function createAssessmentSupabase(assessment) {
             }])
             .select();
 
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erro ao criar assessment:', error);
+            throw error;
+        }
         
         // Registrar no histórico
         await addHistorySupabase(data[0].id, 'CREATE', null, assessment);
         
-        console.log('Assessment criado:', data[0]);
+        console.log('✅ Assessment criado:', data[0]);
         return { success: true, data: data[0] };
     } catch (error) {
-        console.error('Erro ao criar assessment:', error);
+        console.error('❌ Erro ao criar assessment:', error);
         return { success: false, error: error.message };
     }
 }
 
 async function updateAssessmentSupabase(id, updates) {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+        }
+
+        console.log('✏️ Atualizando assessment ID:', id);
+        
         // Buscar dados antigos
         const { data: oldData } = await supabaseClient
             .from('assessments')
@@ -124,10 +189,10 @@ async function updateAssessmentSupabase(id, updates) {
         // Calcular dias restantes e status automaticamente
         const dias_restantes = updates.data_limite ? 
             calculateDaysRemaining(updates.data_limite) : 
-            oldData.dias_restantes;
+            oldData?.dias_restantes;
         
         const status = dias_restantes < 0 && updates.status !== 'Concluído' ? 
-            'Atrasado' : (updates.status || oldData.status);
+            'Atrasado' : (updates.status || oldData?.status);
 
         const { data, error } = await supabaseClient
             .from('assessments')
@@ -140,21 +205,30 @@ async function updateAssessmentSupabase(id, updates) {
             .eq('id', id)
             .select();
 
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erro ao atualizar assessment:', error);
+            throw error;
+        }
         
         // Registrar no histórico
         await addHistorySupabase(id, 'UPDATE', oldData, updates);
         
-        console.log('Assessment atualizado:', data[0]);
+        console.log('✅ Assessment atualizado:', data[0]);
         return { success: true, data: data[0] };
     } catch (error) {
-        console.error('Erro ao atualizar assessment:', error);
+        console.error('❌ Erro ao atualizar assessment:', error);
         return { success: false, error: error.message };
     }
 }
 
 async function deleteAssessmentSupabase(id) {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+        }
+
+        console.log('🗑️ Deletando assessment ID:', id);
+        
         // Soft delete - marcar como deletado
         const { data, error } = await supabaseClient
             .from('assessments')
@@ -165,15 +239,18 @@ async function deleteAssessmentSupabase(id) {
             .eq('id', id)
             .select();
 
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erro ao deletar assessment:', error);
+            throw error;
+        }
         
         // Registrar no histórico
         await addHistorySupabase(id, 'DELETE', { id }, null);
         
-        console.log('Assessment deletado');
+        console.log('✅ Assessment deletado');
         return { success: true };
     } catch (error) {
-        console.error('Erro ao deletar assessment:', error);
+        console.error('❌ Erro ao deletar assessment:', error);
         return { success: false, error: error.message };
     }
 }
@@ -181,6 +258,10 @@ async function deleteAssessmentSupabase(id) {
 // ====== FUNÇÕES DE RELATÓRIO ======
 async function getReportFilteredItemsSupabase(setor, status, reportType) {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+        }
+
         const userId = localStorage.getItem('userId');
         if (!userId) return [];
         
@@ -211,17 +292,24 @@ async function getReportFilteredItemsSupabase(setor, status, reportType) {
 
         const { data, error } = await query.order('data_limite', { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erro ao buscar filtrados:', error);
+            throw error;
+        }
         
         return data || [];
     } catch (error) {
-        console.error('Erro ao buscar filtrados:', error);
+        console.error('❌ Erro ao buscar filtrados:', error);
         return [];
     }
 }
 
 async function getCompletedAssessmentsSupabase() {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+        }
+
         const userId = localStorage.getItem('userId');
         if (!userId) return [];
         
@@ -235,13 +323,17 @@ async function getCompletedAssessmentsSupabase() {
         if (error) throw error;
         return data || [];
     } catch (error) {
-        console.error('Erro ao buscar concluídos:', error);
+        console.error('❌ Erro ao buscar concluídos:', error);
         return [];
     }
 }
 
 async function getOverdueAssessmentsSupabase() {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+        }
+
         const userId = localStorage.getItem('userId');
         if (!userId) return [];
         
@@ -255,7 +347,7 @@ async function getOverdueAssessmentsSupabase() {
         if (error) throw error;
         return data || [];
     } catch (error) {
-        console.error('Erro ao buscar atrasados:', error);
+        console.error('❌ Erro ao buscar atrasados:', error);
         return [];
     }
 }
@@ -263,6 +355,10 @@ async function getOverdueAssessmentsSupabase() {
 // ====== FUNÇÕES DE AUDITORIA ======
 async function addHistorySupabase(assessmentId, action, oldValues, newValues) {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+        }
+
         const userId = localStorage.getItem('userId');
         
         await supabaseClient
@@ -276,12 +372,16 @@ async function addHistorySupabase(assessmentId, action, oldValues, newValues) {
                 created_at: new Date().toISOString()
             }]);
     } catch (error) {
-        console.error('Erro ao registrar histórico:', error);
+        console.error('❌ Erro ao registrar histórico:', error);
     }
 }
 
 async function getAssessmentHistorySupabase(assessmentId) {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+        }
+
         const { data, error } = await supabaseClient
             .from('assessment_history')
             .select('*')
@@ -291,7 +391,7 @@ async function getAssessmentHistorySupabase(assessmentId) {
         if (error) throw error;
         return data || [];
     } catch (error) {
-        console.error('Erro ao buscar histórico:', error);
+        console.error('❌ Erro ao buscar histórico:', error);
         return [];
     }
 }
@@ -299,6 +399,10 @@ async function getAssessmentHistorySupabase(assessmentId) {
 // ====== FUNÇÃO DE SINCRONIZAÇÃO ======
 async function syncDataWithSupabase() {
     try {
+        if (!supabaseClient) {
+            await initSupabaseClient();
+        }
+
         // Verificar se há dados pendentes no localStorage
         const pendingSync = JSON.parse(localStorage.getItem('pendingSync') || '[]');
         
@@ -312,7 +416,7 @@ async function syncDataWithSupabase() {
                     await deleteAssessmentSupabase(item.id);
                 }
             } catch (error) {
-                console.error('Erro ao sincronizar item:', error);
+                console.error('❌ Erro ao sincronizar item:', error);
             }
         }
         
@@ -321,7 +425,7 @@ async function syncDataWithSupabase() {
         
         return { success: true };
     } catch (error) {
-        console.error('Erro ao sincronizar:', error);
+        console.error('❌ Erro ao sincronizar:', error);
         return { success: false, error: error.message };
     }
 }
@@ -343,23 +447,33 @@ function subscribeToAssessmentsSupabase(callback) {
     const userId = localStorage.getItem('userId');
     if (!userId) return null;
 
-    const subscription = supabaseClient
-        .channel(`assessments:${userId}`)
-        .on(
-            'postgres_changes',
-            {
-                event: '*',
-                schema: 'public',
-                table: 'assessments',
-                filter: `user_id=eq.${userId}`
-            },
-            (payload) => {
-                console.log('Real-time update:', payload);
-                callback(payload);
-            }
-        )
-        .subscribe();
+    if (!supabaseClient) {
+        console.warn('⚠️ Cliente Supabase não inicializado para subscription');
+        return null;
+    }
 
-    return subscription;
+    try {
+        const subscription = supabaseClient
+            .channel(`assessments:${userId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'assessments',
+                    filter: `user_id=eq.${userId}`
+                },
+                (payload) => {
+                    console.log('🔄 Real-time update:', payload);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+
+        return subscription;
+    } catch (error) {
+        console.error('❌ Erro ao configurar subscription:', error);
+        return null;
+    }
 }
 
