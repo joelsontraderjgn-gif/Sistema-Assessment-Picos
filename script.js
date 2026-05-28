@@ -43,10 +43,7 @@ function hideLoginScreen() {
 }
 
 function displayLoggedUser() {
-    const loggedUser = document.getElementById('loggedUserName');
-    if (loggedUser) {
-        loggedUser.textContent = loggedInUser || 'Admin';
-    }
+    // Email removido conforme solicitado
 }
 
 function handleLogin(event) {

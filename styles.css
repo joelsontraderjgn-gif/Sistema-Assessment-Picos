@@ -161,11 +161,6 @@ body {
     gap: var(--spacing-md);
 }
 
-.logged-user {
-    font-weight: 600;
-    color: var(--color-gray-dark);
-}
-
 .app-container {
     display: flex;
     height: 100vh;
