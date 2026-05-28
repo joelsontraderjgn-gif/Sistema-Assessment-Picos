@@ -12,22 +12,21 @@ const itemsPerPage = 10;
 let filteredAssessments = [];
 let editingId = null;
 let loggedInUser = null;
+let loggedInUserId = null;
 let isAppInitialized = false;
-
-const validLogin = {
-    email: 'mateusvictorsantos02@gmail.com',
-    password: 'Mateus-2007'
-};
 
 function checkLoginState() {
     const storedUser = localStorage.getItem('loggedInUser');
-    if (storedUser === validLogin.email) {
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUser && storedUserId) {
         loggedInUser = storedUser;
+        loggedInUserId = storedUserId;
         hideLoginScreen();
         displayLoggedUser();
         loadAssessments();
     } else {
         localStorage.removeItem('loggedInUser');
+        localStorage.removeItem('userId');
         showLoginScreen();
     }
 }
@@ -46,7 +45,7 @@ function displayLoggedUser() {
     // Email removido conforme solicitado
 }
 
-function handleLogin(event) {
+async function handleLogin(event) {
     event.preventDefault();
     const email = document.getElementById('loginEmail')?.value.trim();
     const password = document.getElementById('loginPassword')?.value.trim();
@@ -60,62 +59,75 @@ function handleLogin(event) {
         return;
     }
 
-    if (email.toLowerCase() !== validLogin.email || password !== validLogin.password) {
-        showToast('Email ou senha incorretos. Use suas credenciais válidas.', 'error');
+    const result = await loginUserSupabase(email, password);
+    if (!result.success) {
+        showToast(`Erro no login: ${result.error}`, 'error');
         return;
     }
 
-    loggedInUser = email;
-    localStorage.setItem('loggedInUser', email);
+    loggedInUser = result.user.email;
+    loggedInUserId = result.user.id;
+    localStorage.setItem('loggedInUser', loggedInUser);
+    localStorage.setItem('userId', loggedInUserId);
     hideLoginScreen();
     displayLoggedUser();
-    loadAssessments();
+    await loadAssessments();
 }
 
-function logoutUser() {
+async function logoutUser() {
+    await logoutUserSupabase();
     localStorage.removeItem('loggedInUser');
+    localStorage.removeItem('userId');
     loggedInUser = null;
+    loggedInUserId = null;
+    assessments = [];
     showLoginScreen();
 }
 
 // Carregar dados do localStorage ou usar dados padrão
-function loadAssessments() {
-    const stored = localStorage.getItem('assessments');
-    if (stored) {
-        try {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                assessments = parsed;
-                normalizeAssessments();
-                saveAssessments();
-                initializeApp();
-                return;
-            }
-        } catch (error) {
-            console.warn('LocalStorage com dados inválidos, carregando defaults.', error);
-        }
-    }
+async function loadAssessments() {
+    try {
+        assessments = await getAssessmentsFromSupabase();
+        normalizeAssessments();
+        initializeApp();
+    } catch (error) {
+        console.error('Erro ao carregar dados do Supabase:', error);
+        showToast('Erro ao carregar dados do Supabase. Carregando dados locais.', 'warning');
 
-    // Carregar dados da planilha extraída se não houver dados válidos no localStorage
-    fetch('./assessments_data.json')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+        const stored = localStorage.getItem('assessments');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    assessments = parsed;
+                    normalizeAssessments();
+                    initializeApp();
+                    return;
+                }
+            } catch (err) {
+                console.warn('LocalStorage com dados inválidos, carregando defaults.', err);
             }
-            return response.json();
-        })
-        .then(data => {
-            assessments = Array.isArray(data) ? data : [];
-            normalizeAssessments();
-            saveAssessments();
-            initializeApp();
-        })
-        .catch(error => {
-            console.error('Erro ao carregar dados:', error);
-            showToast(`Erro ao carregar dados dos assessments: ${error.message}`, 'error');
-            assessments = [];
-            initializeApp();
-        });
+        }
+
+        fetch('./assessments_data.json')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                assessments = Array.isArray(data) ? data : [];
+                normalizeAssessments();
+                initializeApp();
+            })
+            .catch(fetchError => {
+                console.error('Erro ao carregar dados locais:', fetchError);
+                showToast(`Erro ao carregar dados locais: ${fetchError.message}`, 'error');
+                assessments = [];
+                initializeApp();
+            });
+    }
 }
 
 function normalizeAssessments() {
@@ -128,7 +140,8 @@ function normalizeAssessments() {
 }
 
 function saveAssessments() {
-    localStorage.setItem('assessments', JSON.stringify(assessments));
+    // A persistência principal agora é feita no Supabase.
+    // Este método permanece para compatibilidade local, mas não é a fonte de verdade.
 }
 
 // ============================================
@@ -469,7 +482,7 @@ function goToPage(page) {
 // ============================================
 // CRUD OPERATIONS
 // ============================================
-function handleFormSubmit(e) {
+async function handleFormSubmit(e) {
     e.preventDefault();
 
     const formData = {
@@ -485,25 +498,23 @@ function handleFormSubmit(e) {
     };
 
     if (editingId) {
-        // Atualizar
-        const index = assessments.findIndex(a => a.id === editingId);
-        if (index !== -1) {
-            assessments[index] = { ...assessments[index], ...formData };
-            showToast('Assessment atualizado com sucesso', 'success');
+        const result = await updateAssessmentSupabase(editingId, formData);
+        if (!result.success) {
+            showToast(`Erro ao atualizar assessment: ${result.error}`, 'error');
+            return;
         }
+        showToast('Assessment atualizado com sucesso', 'success');
     } else {
-        // Criar novo
-        const newId = Math.max(...assessments.map(a => a.id), 0) + 1;
-        const newAssessment = {
-            id: newId,
-            ...formData,
-            dias_restantes: calculateDaysRemaining(formData.data_limite)
-        };
-        assessments.push(newAssessment);
+        const result = await createAssessmentSupabase(formData);
+        if (!result.success) {
+            showToast(`Erro ao criar assessment: ${result.error}`, 'error');
+            return;
+        }
         showToast('Assessment criado com sucesso', 'success');
     }
 
-    saveAssessments();
+    assessments = await getAssessmentsFromSupabase();
+    normalizeAssessments();
     updateDashboard();
     renderAssessmentsTable();
     document.getElementById('assessmentModal').classList.remove('active');
@@ -528,27 +539,34 @@ function editAssessment(id) {
     document.getElementById('assessmentModal').classList.add('active');
 }
 
-function deleteAssessment(id) {
-    if (confirm('Tem certeza que deseja deletar este assessment?')) {
-        assessments = assessments.filter(a => a.id !== id);
-        saveAssessments();
-        updateDashboard();
-        renderAssessmentsTable();
-        showToast('Assessment deletado com sucesso', 'success');
+async function deleteAssessment(id) {
+    if (!confirm('Tem certeza que deseja deletar este assessment?')) {
+        return;
     }
+
+    const result = await deleteAssessmentSupabase(id);
+    if (!result.success) {
+        showToast(`Erro ao deletar assessment: ${result.error}`, 'error');
+        return;
+    }
+
+    assessments = await getAssessmentsFromSupabase();
+    normalizeAssessments();
+    updateDashboard();
+    renderAssessmentsTable();
+    showToast('Assessment deletado com sucesso', 'success');
 }
 
-function updateAssessmentStatus(id, status) {
-    const assessment = assessments.find(a => a.id === id);
-    if (!assessment) return;
-
-    assessment.status = status;
-    assessment.dias_restantes = calculateDaysRemaining(assessment.data_limite);
-    if (status === 'Concluído') {
-        assessment.evidencia = assessment.evidencia || 'Concluído diretamente';
+async function updateAssessmentStatus(id, status) {
+    const updates = { status };
+    const result = await updateAssessmentSupabase(id, updates);
+    if (!result.success) {
+        showToast(`Erro ao atualizar status: ${result.error}`, 'error');
+        return;
     }
 
-    saveAssessments();
+    assessments = await getAssessmentsFromSupabase();
+    normalizeAssessments();
     updateDashboard();
     renderAssessmentsTable();
     showToast(`Assessment marcado como ${status}`, 'success');

@@ -7,13 +7,13 @@ const SUPABASE_KEY = 'sb_publishable_DKnA4UiciAU_7y2xs-iwQg_mvE6hh9_';
 
 // Inicializar cliente Supabase
 const { createClient } = window.supabase;
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ====== FUNÇÕES DE AUTENTICAÇÃO ======
 async function loginUserSupabase(email, password) {
     try {
         // Buscar usuário no banco
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('users')
             .select('*')
             .eq('email', email)
@@ -51,7 +51,7 @@ async function getAssessmentsFromSupabase() {
         const userId = localStorage.getItem('userId');
         if (!userId) return [];
         
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('assessments')
             .select('*')
             .eq('user_id', userId)
@@ -82,7 +82,7 @@ async function createAssessmentSupabase(assessment) {
         const dias_restantes = calculateDaysRemaining(assessment.data_limite);
         const status = dias_restantes < 0 ? 'Atrasado' : assessment.status;
         
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('assessments')
             .insert([{
                 nome: assessment.nome,
@@ -115,7 +115,7 @@ async function createAssessmentSupabase(assessment) {
 async function updateAssessmentSupabase(id, updates) {
     try {
         // Buscar dados antigos
-        const { data: oldData } = await supabase
+        const { data: oldData } = await supabaseClient
             .from('assessments')
             .select('*')
             .eq('id', id)
@@ -129,7 +129,7 @@ async function updateAssessmentSupabase(id, updates) {
         const status = dias_restantes < 0 && updates.status !== 'Concluído' ? 
             'Atrasado' : (updates.status || oldData.status);
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('assessments')
             .update({
                 ...updates,
@@ -156,7 +156,7 @@ async function updateAssessmentSupabase(id, updates) {
 async function deleteAssessmentSupabase(id) {
     try {
         // Soft delete - marcar como deletado
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('assessments')
             .update({ 
                 deleted_at: new Date().toISOString(),
@@ -184,7 +184,7 @@ async function getReportFilteredItemsSupabase(setor, status, reportType) {
         const userId = localStorage.getItem('userId');
         if (!userId) return [];
         
-        let query = supabase
+        let query = supabaseClient
             .from('assessments')
             .select('*')
             .eq('user_id', userId)
@@ -225,7 +225,7 @@ async function getCompletedAssessmentsSupabase() {
         const userId = localStorage.getItem('userId');
         if (!userId) return [];
         
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('assessments')
             .select('*')
             .eq('user_id', userId)
@@ -245,7 +245,7 @@ async function getOverdueAssessmentsSupabase() {
         const userId = localStorage.getItem('userId');
         if (!userId) return [];
         
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('assessments')
             .select('*')
             .eq('user_id', userId)
@@ -265,7 +265,7 @@ async function addHistorySupabase(assessmentId, action, oldValues, newValues) {
     try {
         const userId = localStorage.getItem('userId');
         
-        await supabase
+        await supabaseClient
             .from('assessment_history')
             .insert([{
                 assessment_id: assessmentId,
@@ -282,7 +282,7 @@ async function addHistorySupabase(assessmentId, action, oldValues, newValues) {
 
 async function getAssessmentHistorySupabase(assessmentId) {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('assessment_history')
             .select('*')
             .eq('assessment_id', assessmentId)
@@ -343,7 +343,7 @@ function subscribeToAssessmentsSupabase(callback) {
     const userId = localStorage.getItem('userId');
     if (!userId) return null;
 
-    const subscription = supabase
+    const subscription = supabaseClient
         .channel(`assessments:${userId}`)
         .on(
             'postgres_changes',
@@ -362,3 +362,4 @@ function subscribeToAssessmentsSupabase(callback) {
 
     return subscription;
 }
+
