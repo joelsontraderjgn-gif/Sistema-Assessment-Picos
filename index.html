@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento de Assessments - Heineken</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="login-screen active" id="loginScreen">
+        <div class="login-card">
+            <div class="login-brand">
+                <div class="logo-icon">H</div>
+                <div>
+                    <h1>Heineken Assessments</h1>
+                    <p>Informe seu email para acessar o sistema.</p>
+                </div>
+            </div>
+
+            <form id="loginForm" class="login-form">
+                <label for="loginEmail">Email</label>
+                <input type="email" id="loginEmail" placeholder="seu@empresa.com" required>
+
+                <label for="loginPassword">Senha</label>
+                <input type="password" id="loginPassword" placeholder="Senha de acesso" required>
+
+                <button type="submit" class="btn btn-primary">Entrar</button>
+            </form>
+            <p class="login-note">Use o email e a senha fornecidos para acessar: mateusvictorsantos02@gmail.com / Mateus-2007</p>
+        </div>
+    </div>
+
+    <div class="app-container hidden">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">H</div>
+                    <div class="logo-text">
+                        <div class="logo-title">JGN - Heineken</div>
+                        <div class="logo-subtitle">Assessments</div>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-page="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-page="assessments">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-label">Assessments</span>
+                </a>
+                <a href="#" class="nav-item" data-page="import">
+                    <span class="nav-icon">📥</span>
+                    <span class="nav-label">Importar CSV</span>
+                </a>
+                <a href="#" class="nav-item" data-page="relatorios">
+                    <span class="nav-icon">📈</span>
+                    <span class="nav-label">Relatórios</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">A</div>
+                    <div class="user-details">
+                        <div class="user-name">Admin</div>
+                        <div class="user-status">Online</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menuToggle">☰</button>
+                    <h1 class="page-title">Controle de Assessments</h1>
+                </div>
+                <div class="header-right header-login-area">
+                    <span class="logged-user" id="loggedUserName">Admin</span>
+                    <button class="btn btn-secondary" id="logoutBtn">Sair</button>
+                    <button class="btn-icon" id="notificationBtn">🔔</button>
+                    <button class="btn-icon" id="settingsBtn">⚙️</button>
+                </div>
+            </header>
+
+            <!-- Pages Container -->
+            <div class="pages-container">
+                <!-- Dashboard Page -->
+                <section id="dashboard-page" class="page active">
+                    <!-- Stats Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">📊</div>
+                            <div class="stat-content">
+                                <div class="stat-label">Total de Assessments</div>
+                                <div class="stat-value" id="totalAssessments">0</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-content">
+                                <div class="stat-label">Concluídos</div>
+                                <div class="stat-value" id="completedAssessments">0</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">⏳</div>
+                            <div class="stat-content">
+                                <div class="stat-label">Pendentes</div>
+                                <div class="stat-value" id="pendingAssessments">0</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">⚠️</div>
+                            <div class="stat-content">
+                                <div class="stat-label">Atrasados</div>
+                                <div class="stat-value" id="overdueAssessments">0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3 class="chart-title">Status dos Assessments</h3>
+                            <canvas id="statusChart"></canvas>
+                        </div>
+
+                        <div class="chart-card">
+                            <h3 class="chart-title">Assessments por Setor</h3>
+                            <canvas id="sectorChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Recent Assessments -->
+                    <div class="recent-section">
+                        <h3 class="section-title">Assessments Próximos do Vencimento</h3>
+                        <div class="recent-list" id="recentList"></div>
+                    </div>
+                </section>
+
+                <!-- Assessments Page -->
+                <section id="assessments-page" class="page">
+                    <div class="page-header">
+                        <h2>Gerenciamento de Assessments</h2>
+                        <button class="btn btn-primary" id="newAssessmentBtn">+ Novo Assessment</button>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="filters-section">
+                        <div class="filter-group">
+                            <input type="text" class="filter-input" id="searchInput" placeholder="Buscar por nome ou código...">
+                        </div>
+                        <div class="filter-group">
+                            <select class="filter-select" id="sectorFilter">
+                                <option value="">Todos os Setores</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <select class="filter-select" id="statusFilter">
+                                <option value="">Todos os Status</option>
+                                <option value="Não iniciado">Não iniciado</option>
+                                <option value="Em andamento">Em andamento</option>
+                                <option value="Aguardando evidência">Aguardando evidência</option>
+                                <option value="Concluído">Concluído</option>
+                                <option value="Atrasado">Atrasado</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="table-container">
+                        <table class="assessments-table">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Setor</th>
+                                    <th>Responsável</th>
+                                    <th>Prazo</th>
+                                    <th>Dias Restantes</th>
+                                    <th>Status</th>
+                                    <th>Evidência</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assessmentsTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="pagination" id="pagination"></div>
+                </section>
+
+                <!-- Import Page -->
+                <section id="import-page" class="page">
+                    <div class="page-header">
+                        <h2>Importar Assessments</h2>
+                    </div>
+
+                    <div class="import-container">
+                        <div class="import-box">
+                            <div class="import-icon">📥</div>
+                            <h3>Importar Planilha CSV</h3>
+                            <p>Arraste um arquivo CSV ou clique para selecionar</p>
+                            <input type="file" id="csvFile" accept=".csv" class="file-input">
+                            <button class="btn btn-primary" id="uploadBtn">Selecionar Arquivo</button>
+                        </div>
+
+                        <div class="import-preview" id="importPreview"></div>
+                    </div>
+                </section>
+
+                <!-- Reports Page -->
+                <section id="relatorios-page" class="page">
+                    <div class="page-header">
+                        <div>
+                            <h2>Relatórios</h2>
+                            <p class="page-subtitle">Filtre itens atrasados e próximos a vencer e gere relatórios para download.</p>
+                        </div>
+                    </div>
+
+                    <div class="reports-actions">
+                        <button class="btn btn-primary" id="downloadPdfBtn">Baixar PDF</button>
+                        <button class="btn btn-secondary" id="downloadExcelBtn">Baixar Excel</button>
+                    </div>
+
+                    <div class="reports-filters">
+                        <div class="filter-card">
+                            <label>Setor</label>
+                            <select class="filter-select" id="reportSectorFilter">
+                                <option value="">Todos os Setores</option>
+                            </select>
+                        </div>
+                        <div class="filter-card">
+                            <label>Status</label>
+                            <select class="filter-select" id="reportStatusFilter">
+                                <option value="">Todos os Status</option>
+                                <option value="Atrasado">Atrasado</option>
+                                <option value="Não iniciado">Não iniciado</option>
+                                <option value="Em andamento">Em andamento</option>
+                                <option value="Aguardando evidência">Aguardando evidência</option>
+                                <option value="Concluído">Concluído</option>
+                            </select>
+                        </div>
+                        <div class="filter-card">
+                            <label>Tipo de relatório</label>
+                            <select class="filter-select" id="reportTypeFilter">
+                                <option value="all">Todos</option>
+                                <option value="overdue">Atrasados</option>
+                                <option value="dueSoon">Próximos a vencer</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="reports-overview">
+                        <div class="report-pill">
+                            <span>Atrasados</span>
+                            <strong id="reportOverdueCount">0</strong>
+                        </div>
+                        <div class="report-pill">
+                            <span>Próximos a vencer</span>
+                            <strong id="reportDueSoonCount">0</strong>
+                        </div>
+                        <div class="report-pill">
+                            <span>Total exibido</span>
+                            <strong id="reportVisibleCount">0</strong>
+                        </div>
+                    </div>
+
+                    <div class="reports-grid">
+                        <div class="report-card">
+                            <h3>Resumo por Setor</h3>
+                            <div id="sectorSummary"></div>
+                        </div>
+
+                        <div class="report-card">
+                            <h3>Distribuição de Status</h3>
+                            <div id="statusSummary"></div>
+                        </div>
+
+                        <div class="report-card full-width-report">
+                            <h3>Responsáveis por Setor</h3>
+                            <div id="assigneeSummary"></div>
+                        </div>
+                    </div>
+
+                    <div class="report-table-section">
+                        <h3 class="section-title">Itens do Relatório</h3>
+                        <div class="table-container report-table-container">
+                            <table class="assessments-table report-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Setor</th>
+                                        <th>Responsável</th>
+                                        <th>Prazo</th>
+                                        <th>Dias Restantes</th>
+                                        <th>Status</th>
+                                        <th>Motivo / Atraso</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reportTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- New/Edit Assessment Modal -->
+    <div class="modal" id="assessmentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Novo Assessment</h2>
+                <button class="modal-close" id="closeModal">✕</button>
+            </div>
+            <form id="assessmentForm" class="modal-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nome do Assessment</label>
+                        <input type="text" id="assessmentName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Setor</label>
+                        <select id="assessmentSector" required></select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Responsável</label>
+                        <input type="text" id="assessmentResponsavel">
+                    </div>
+                    <div class="form-group">
+                        <label>Prioridade</label>
+                        <select id="assessmentPriority">
+                            <option value="Baixa">Baixa</option>
+                            <option value="Normal" selected>Normal</option>
+                            <option value="Alta">Alta</option>
+                            <option value="Crítica">Crítica</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Data de Início</label>
+                        <input type="date" id="assessmentStartDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Data Limite</label>
+                        <input type="date" id="assessmentDeadline" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="assessmentStatus">
+                            <option value="Não iniciado">Não iniciado</option>
+                            <option value="Em andamento">Em andamento</option>
+                            <option value="Aguardando evidência">Aguardando evidência</option>
+                            <option value="Concluído">Concluído</option>
+                            <option value="Atrasado">Atrasado</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Observações</label>
+                    <textarea id="assessmentObservacoes" rows="3"></textarea>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Evidência</label>
+                    <input type="text" id="assessmentEvidence" placeholder="Descrição da evidência ou link">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Loading Spinner -->
+    <div class="loader" id="loader"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
