@@ -1,0 +1,30 @@
+{
+  "name": "heineken-assessments",
+  "version": "2.0.0",
+  "description": "Sistema de Gestão de Assessments Heineken com Supabase",
+  "type": "module",
+  "main": "script.js",
+  "scripts": {
+    "dev": "npx serve .",
+    "build": "echo 'No build needed for vanilla JS'",
+    "test": "echo 'Add tests here'"
+  },
+  "keywords": [
+    "assessments",
+    "heineken",
+    "supabase",
+    "javascript"
+  ],
+  "author": "Mateus Victor",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.40.0"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seu-usuario/heineken-assessments.git"
+  }
+}
